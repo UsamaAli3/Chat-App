@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import User from "./models/User.mjs";
 import jwt from "jsonwebtoken";
 import cors from "cors";
+import ws, { WebSocketServer } from "ws";
 
 const PORT = process.env.PORT || "3000";
 connectDB();
@@ -45,8 +46,8 @@ app.post("/register", async (req, res) => {
   try {
     const hashedPassword = bcrypt.hashSync(password, bcryptSalt);
     const createdUser = await User.create({
-      username:username,
-      password:hashedPassword,
+      username: username,
+      password: hashedPassword,
     });
     jwt.sign(
       { userId: createdUser._id, username },
@@ -89,6 +90,35 @@ app.post("/login", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  return console.log(`Running on Port: ${PORT}`);
+const server = app.listen(PORT);
+const wss = new WebSocketServer({ server });
+
+wss.on("connection", (connection, req) => {
+  const cookie = req.headers.cookie;
+  if (cookie) {
+    const tokenCookieString = cookie
+      .split(";")
+      .find((str) => str.startsWith("token="));
+    if (tokenCookieString) {
+      const token = tokenCookieString.split("=")[1];
+      if (token) {
+        jwt.verify(token, jwtSecret, {}, (err, userData) => {
+          if (err) throw err;
+          const { userId, username } = userData;
+          connection.userId = userId;
+          connection.username = username;
+        });
+      }
+    }
+  }
+  [...wss.clients].forEach((client) => {
+    client.send(
+      JSON.stringify({
+        online: [...wss.clients].map((cl) => ({
+          userId: cl.userId,
+          username: cl.username,
+        })),
+      })
+    );
+  });
 });

@@ -12,7 +12,6 @@ export function UserContextProvider({ children }) {
       .then((response) => {
         setId(response.data.userId);
         setUsername(response.data.username);
-        console.log(response.data);
       })
       .catch((err) => console.log(err));
   }, []);
