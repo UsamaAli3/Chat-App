@@ -92,8 +92,8 @@ app.post("/login", async (req, res) => {
 
 const server = app.listen(PORT);
 const wss = new WebSocketServer({ server });
-
 wss.on("connection", (connection, req) => {
+  //read username and id from the cookie
   const cookie = req.headers.cookie;
   if (cookie) {
     const tokenCookieString = cookie
@@ -111,6 +111,19 @@ wss.on("connection", (connection, req) => {
       }
     }
   }
+
+  connection.on("message", (message) => {
+    const messageData = JSON.parse(message.toString());
+    const { recipient, text } = messageData;
+    if (recipient && text) {
+      const hi = [...wss.clients]
+        .filter((c) => c.userId === recipient)
+        .forEach((c) =>
+          c.send(JSON.stringify({ text, sender: connection.userId }))
+        );
+    }
+  });
+  //Notify everyOne
   [...wss.clients].forEach((client) => {
     client.send(
       JSON.stringify({

@@ -1,9 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import Avatar from "../container/Avatar";
+import Logo from "../container/Logo";
+import { UserContext } from "../container/UserContext";
 
 function Chat() {
   const [wsConnection, setWsConnection] = useState(null);
   const [onlinePeople, setOnlinePeople] = useState({});
+  const [newMessage, setNewMessage] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [selectuserId, setSelectuserId] = useState(null);
+  const { username, id } = useContext(UserContext);
 
   function showOnlinePeople(peopleArray) {
     const people = {};
@@ -16,6 +22,8 @@ function Chat() {
     const messageData = JSON.parse(ev.data);
     if ("online" in messageData) {
       showOnlinePeople(messageData.online);
+    } else {
+      setMessages((prv) => [...prv, { isOur: false, text: messageData.text }]);
     }
   }
   useEffect(() => {
@@ -23,17 +31,37 @@ function Chat() {
     setWsConnection(ws);
     ws.addEventListener("message", handleMessage);
   }, []);
+  //This method is used to Remove himself in an Object
+  const onlinePeopleExcl = { ...onlinePeople };
+  delete onlinePeopleExcl[id];
 
+  function handleOnSubmit(e) {
+    e.preventDefault();
+    wsConnection.send(
+      JSON.stringify({
+        recipient: selectuserId,
+        text: newMessage,
+      })
+    );
+    setMessages((prv) => [...prv, { text: newMessage, isOur: true }]);
+    setNewMessage("");
+  }
   return (
     <div className="flex h-screen">
       <div className="bg-white w-1/3 flex flex-col">
         <div className="flex-grow">
-          logo{" "}
-          {Object.keys(onlinePeople).map((userId) => (
+          <Logo />{" "}
+          {Object.keys(onlinePeopleExcl).map((userId) => (
             <div
               key={userId}
-              className="border-b border-gray-100 flex  items-center gap-2 cursor-pointer "
+              onClick={() => setSelectuserId(userId)}
+              className={` border-b border-gray-100 flex  items-center gap-2 cursor-pointer ${
+                userId === selectuserId ? "bg-blue-50" : ""
+              } `}
             >
+              {userId === selectuserId && (
+                <div className="w-1 bg-blue-500 h-12 rounded-r-md"></div>
+              )}
               <div className="flex gap-2 py-2 pl-4 items-center">
                 <Avatar username={onlinePeople[userId]} userId={userId} />
                 <span className="text-gray-800">{onlinePeople[userId]}</span>
@@ -57,18 +85,30 @@ function Chat() {
             </svg>
             username
           </span>
-          <button className="text-sm bg-blue-100 py-1 px-2 text-gray-500 border rounded-sm">
+          <button
+            type="submit"
+            className="text-sm bg-blue-100 py-1 px-2 text-gray-500 border rounded-sm"
+          >
             logout
           </button>
         </div>
       </div>
       <div className="flex flex-col bg-blue-50 w-2/3 p-2">
         <div className="flex-grow">
-          <div className="flex h-full flex-grow items-center justify-center">
-            <div className="text-gray-300">
-              &larr; Select a person from the sidebar
+          {!selectuserId && (
+            <div className="flex h-full flex-grow items-center justify-center">
+              <div className="text-gray-300">
+                &larr; Select a person from the sidebar
+              </div>
             </div>
-          </div>
+          )}
+          {!!selectuserId && (
+            <div>
+              {messages.map((messag) => (
+                <div key={messag.recipient}>{messag.text}</div>
+              ))}
+            </div>
+          )}
 
           {/* <div className="relative h-full">
             <div className="overflow-y-scroll absolute top-0 left-0 right-0 bottom-2">
@@ -102,48 +142,51 @@ function Chat() {
             </div>
           </div> */}
         </div>
-
-        <form className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Type your message here"
-            className="bg-white flex-grow border rounded-sm p-2"
-          />
-          <label className="bg-blue-200 p-2 text-gray-600 cursor-pointer rounded-sm border border-blue-200">
-            <input type="file" className="hidden" />
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-6 h-6"
+        {!!selectuserId && (
+          <form onSubmit={handleOnSubmit} className="flex gap-2">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type your message here"
+              className="bg-white flex-grow border rounded-sm p-2"
+            />
+            <label className="bg-blue-200 p-2 text-gray-600 cursor-pointer rounded-sm border border-blue-200">
+              <input type="file" className="hidden" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+                className="w-6 h-6"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M18.97 3.659a2.25 2.25 0 00-3.182 0l-10.94 10.94a3.75 3.75 0 105.304 5.303l7.693-7.693a.75.75 0 011.06 1.06l-7.693 7.693a5.25 5.25 0 11-7.424-7.424l10.939-10.94a3.75 3.75 0 115.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 015.91 15.66l7.81-7.81a.75.75 0 011.061 1.06l-7.81 7.81a.75.75 0 001.054 1.068L18.97 6.84a2.25 2.25 0 000-3.182z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </label>
+            <button
+              type="submit"
+              className="bg-blue-500 p-2 text-white rounded-sm"
             >
-              <path
-                fillRule="evenodd"
-                d="M18.97 3.659a2.25 2.25 0 00-3.182 0l-10.94 10.94a3.75 3.75 0 105.304 5.303l7.693-7.693a.75.75 0 011.06 1.06l-7.693 7.693a5.25 5.25 0 11-7.424-7.424l10.939-10.94a3.75 3.75 0 115.303 5.304L9.097 18.835l-.008.008-.007.007-.002.002-.003.002A2.25 2.25 0 015.91 15.66l7.81-7.81a.75.75 0 011.061 1.06l-7.81 7.81a.75.75 0 001.054 1.068L18.97 6.84a2.25 2.25 0 000-3.182z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </label>
-          <button
-            type="submit"
-            className="bg-blue-500 p-2 text-white rounded-sm"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-              className="w-6 h-6"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
-              />
-            </svg>
-          </button>
-        </form>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={1.5}
+                stroke="currentColor"
+                className="w-6 h-6"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
+                />
+              </svg>
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );
