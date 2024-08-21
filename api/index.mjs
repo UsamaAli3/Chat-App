@@ -5,6 +5,7 @@ import cookieParser from "cookie-parser";
 import bcrypt from "bcryptjs";
 import User from "./models/User.mjs";
 import jwt from "jsonwebtoken";
+import Message from "./models/Message.mjs";
 import cors from "cors";
 import ws, { WebSocketServer } from "ws";
 
@@ -112,14 +113,26 @@ wss.on("connection", (connection, req) => {
     }
   }
 
-  connection.on("message", (message) => {
+  connection.on("message", async (message) => {
     const messageData = JSON.parse(message.toString());
     const { recipient, text } = messageData;
     if (recipient && text) {
-      const hi = [...wss.clients]
+      const messageDoc = await Message.create({
+        sender: connection.userId,
+        recipient,
+        text,
+      });
+      [...wss.clients]
         .filter((c) => c.userId === recipient)
         .forEach((c) =>
-          c.send(JSON.stringify({ text, sender: connection.userId }))
+          c.send(
+            JSON.stringify({
+              text,
+              sender: connection.userId,
+              recipient,
+              _id: messageDoc._id,
+            })
+          )
         );
     }
   });

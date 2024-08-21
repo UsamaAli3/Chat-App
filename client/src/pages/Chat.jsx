@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import Avatar from "../container/Avatar";
 import Logo from "../container/Logo";
 import { UserContext } from "../container/UserContext";
+import { uniqBy } from "lodash";
 
 function Chat() {
   const [wsConnection, setWsConnection] = useState(null);
@@ -23,8 +24,27 @@ function Chat() {
     if ("online" in messageData) {
       showOnlinePeople(messageData.online);
     } else {
-      setMessages((prv) => [...prv, { isOur: false, text: messageData.text }]);
+      setMessages((prv) => [...prv, { ...messageData }]);
     }
+  }
+  function handleOnSubmit(e) {
+    e.preventDefault();
+    wsConnection.send(
+      JSON.stringify({
+        recipient: selectuserId,
+        text: newMessage,
+      })
+    );
+    setMessages((prv) => [
+      ...prv,
+      {
+        text: newMessage,
+        sender: id,
+        recipient: selectuserId,
+        _id: Date.now(),
+      },
+    ]);
+    setNewMessage("");
   }
   useEffect(() => {
     const ws = new WebSocket("ws://localhost:3000");
@@ -35,17 +55,8 @@ function Chat() {
   const onlinePeopleExcl = { ...onlinePeople };
   delete onlinePeopleExcl[id];
 
-  function handleOnSubmit(e) {
-    e.preventDefault();
-    wsConnection.send(
-      JSON.stringify({
-        recipient: selectuserId,
-        text: newMessage,
-      })
-    );
-    setMessages((prv) => [...prv, { text: newMessage, isOur: true }]);
-    setNewMessage("");
-  }
+  const messageWithoutDups = uniqBy(messages, "_id");
+  console.log(messageWithoutDups);
   return (
     <div className="flex h-screen">
       <div className="bg-white w-1/3 flex flex-col">
@@ -104,8 +115,22 @@ function Chat() {
           )}
           {!!selectuserId && (
             <div>
-              {messages.map((messag) => (
-                <div key={messag.recipient}>{messag.text}</div>
+              {messageWithoutDups.map((message) => (
+                <div
+                  key={message._id}
+                  className={message.sender === id ? "text-right" : "text-left"}
+                >
+                  <div
+                    className={
+                      "text-left inline-block p-2 my-2 rounded-md text-sm " +
+                      (message.sender === id
+                        ? "bg-blue-500 text-white"
+                        : "bg-white text-gray-500")
+                    }
+                  >
+                    {message.text}
+                  </div>
+                </div>
               ))}
             </div>
           )}
