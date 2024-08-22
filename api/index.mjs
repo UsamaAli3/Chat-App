@@ -29,6 +29,35 @@ app.get("/", (req, res) => {
   return res.send("Hello! this is a test");
 });
 
+async function getUserDataFromRequest(req) {
+  return new Promise((resolve, reject) => {
+    const token = req.cookies?.token;
+    if (token) {
+      jwt.verify(token, jwtSecret, {}, (err, userData) => {
+        if (err) throw err;
+        resolve(userData);
+      });
+    } else {
+      reject("no token");
+    }
+  });
+}
+
+app.get("/messages/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const userData = await getUserDataFromRequest(req);
+  const ourUserId = userData.userId;
+  console.log(userId, ourUserId);
+  console.log(ourUserId);
+  const messages = await Message.find({
+    sender: { $in: [userId, ourUserId] },
+    recipient: { $in: [userId, ourUserId] },
+  })
+    .sort({ createAt: 1 })
+    .exec();
+  res.json(messages);
+});
+
 app.get("/profile", async (req, res) => {
   const token = req.cookies?.token;
   if (token) {
