@@ -4,14 +4,16 @@ import Logo from "../container/Logo";
 import { UserContext } from "../container/UserContext";
 import { uniqBy } from "lodash";
 import axios from "axios";
+import StatusOfflineAndOnline from "../container/StatusOfflineAndOnline";
 
 function Chat() {
   const [wsConnection, setWsConnection] = useState(null);
   const [onlinePeople, setOnlinePeople] = useState({});
+  const [offlinePeople, setOfflinePeople] = useState({});
   const [newMessage, setNewMessage] = useState("");
   const [messages, setMessages] = useState([]);
   const [selectuserId, setSelectuserId] = useState(null);
-  const { username, id } = useContext(UserContext);
+  const { username, id, setId, setUsername } = useContext(UserContext);
 
   const refForMessageScroll = useRef();
 
@@ -27,15 +29,25 @@ function Chat() {
     if ("online" in messageData) {
       showOnlinePeople(messageData.online);
     } else {
-      setMessages((prv) => [...prv, { ...messageData }]);
+      if (messageData.sender === selectuserId)
+        setMessages((prv) => [...prv, { ...messageData }]);
     }
   }
-  function handleOnSubmit(e) {
-    e.preventDefault();
+
+  function logout() {
+    axios.post("/logout").then(() => {
+      setId(null);
+      setUsername(null);
+    });
+  }
+
+  function handleOnSubmit(e, file = null) {
+    if (e) e.preventDefault();
     wsConnection.send(
       JSON.stringify({
         recipient: selectuserId,
         text: newMessage,
+        file,
       })
     );
     setMessages((prv) => [
@@ -47,7 +59,24 @@ function Chat() {
         _id: Date.now(),
       },
     ]);
+    if (file) {
+      axios.get(`/messages/${selectuserId}`).then((res) => {
+        setMessages(res.data);
+      });
+    }
     setNewMessage("");
+  }
+
+  function sendFile(e) {
+    const reader = new FileReader();
+    reader.readAsDataURL(e.target.files[0]);
+
+    reader.onload = () => {
+      handleOnSubmit(null, {
+        name: e.target.files[0].name,
+        data: reader.result,
+      });
+    };
   }
 
   useEffect(() => {
@@ -70,6 +99,18 @@ function Chat() {
   useEffect(() => {
     ForStayConnected();
   }, []);
+  useEffect(() => {
+    axios.get("/people").then((res) => {
+      const offlinePeopleArr = res.data
+        .filter((p) => p._id !== p)
+        .filter((p) => !Object.keys(onlinePeople).includes(p._id));
+      const offlinePeople = {};
+      offlinePeopleArr.forEach((p) => {
+        offlinePeople[p._id] = p;
+      });
+      setOfflinePeople(offlinePeople);
+    });
+  }, [onlinePeople]);
 
   function ForStayConnected() {
     const ws = new WebSocket("ws://localhost:3000");
@@ -86,24 +127,30 @@ function Chat() {
   return (
     <div className="flex h-screen">
       <div className="bg-white w-1/3 flex flex-col">
-        <div className="flex-grow">
+        <div className="flex-grow overflow-y-scroll ">
           <Logo />{" "}
           {Object.keys(onlinePeopleExcl).map((userId) => (
-            <div
+            <StatusOfflineAndOnline
               key={userId}
+              id={userId}
+              online={true}
+              username={onlinePeopleExcl[userId]}
+              onClick={() => {
+                setSelectuserId(userId);
+                console.log({ userId });
+              }}
+              selected={userId === selectuserId}
+            />
+          ))}
+          {Object.keys(offlinePeople).map((userId) => (
+            <StatusOfflineAndOnline
+              key={userId}
+              id={userId}
+              online={false}
+              username={offlinePeople[userId].username}
               onClick={() => setSelectuserId(userId)}
-              className={` border-b border-gray-100 flex  items-center gap-2 cursor-pointer ${
-                userId === selectuserId ? "bg-blue-50" : ""
-              } `}
-            >
-              {userId === selectuserId && (
-                <div className="w-1 bg-blue-500 h-12 rounded-r-md"></div>
-              )}
-              <div className="flex gap-2 py-2 pl-4 items-center">
-                <Avatar username={onlinePeople[userId]} userId={userId} />
-                <span className="text-gray-800">{onlinePeople[userId]}</span>
-              </div>
-            </div>
+              selected={userId === selectuserId}
+            />
           ))}
         </div>
         <div className="p-2 text-center flex items-center justify-center">
@@ -120,9 +167,10 @@ function Chat() {
                 clipRule="evenodd"
               />
             </svg>
-            username
+            {username}
           </span>
           <button
+            onClick={logout}
             type="submit"
             className="text-sm bg-blue-100 py-1 px-2 text-gray-500 border rounded-sm"
           >
@@ -235,7 +283,7 @@ function Chat() {
               className="bg-white flex-grow border rounded-sm p-2 "
             />
             <label className="bg-blue-200 p-2 text-gray-600 cursor-pointer rounded-sm border border-blue-200">
-              <input type="file" className="hidden" />
+              <input type="file" className="hidden" onChange={sendFile} />
               <svg
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 24 24"
